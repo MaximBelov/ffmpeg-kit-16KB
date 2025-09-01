@@ -48,7 +48,7 @@ jobs:
           unzip -q -o ndk.zip -d .ndk
           echo "ANDROID_NDK_ROOT=$PWD/.ndk/$(ls .ndk)" >> $GITHUB_ENV
       - name: run the build script
-        run: ./android.sh -d --enable-gpl --enable-x264 --enable-android-zlib --disable-arm-v7a-neon
+        run: ./android.sh -d --enable-gpl --enable-x264 --enable-android-zlib --disable-arm-v7a-neon --disable-x86 --disable-x86-64
       - name: prepare and upload main aar
         run: |
           AAR_PATH=$(find prebuilt -type f -name 'ffmpeg-kit.aar')
@@ -91,7 +91,7 @@ jobs:
           unzip -q -o ndk.zip -d .ndk
           echo "ANDROID_NDK_ROOT=$PWD/.ndk/$(ls .ndk)" >> $GITHUB_ENV
       - name: run the build script
-        run: ./android.sh -d --enable-gpl --enable-x264 --enable-android-zlib --disable-arm-v7a-neon
+        run: ./android.sh -d --enable-gpl --enable-x264 --enable-android-zlib --disable-arm-v7a-neon --disable-x86 --disable-x86-64
       - name: prepare and upload lts aar
         run: |
           AAR_PATH=$(find prebuilt -type f -name 'ffmpeg-kit.aar')
