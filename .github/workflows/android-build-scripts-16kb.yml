@@ -1,0 +1,83 @@
+name: android 16kb build scripts
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - development
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-lts-on-linux:
+    name: android lts on linux
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        ndk-version: ['r23c-linux' ]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v2
+      - name: set up adopt jdk 8
+        uses: actions/setup-java@v2.2.0
+        with:
+          distribution: 'adopt'
+          java-version: '8'
+      - name: set up android ndk
+        run: |
+          curl -s "https://dl.google.com/android/repository/android-ndk-${{ matrix.ndk-version }}.zip" -o ndk.zip
+          unzip -q -o ndk.zip -d .ndk
+          echo "ANDROID_NDK_ROOT=$PWD/.ndk/$(ls .ndk)" >> $GITHUB_ENV
+      - name: run the build script
+        run: ./android.sh --lts --enable-gpl --speed --enable-android-zlib --enable-x264 --disable-arm-v7a-neon --disable-x86 --disable-x86-64
+      - name: prepare and upload lts aar
+        run: |
+          AAR_PATH=$(find prebuilt -type f -name 'ffmpeg-kit.aar')
+          if [ -z "$AAR_PATH" ]; then
+            echo "Error: ffmpeg-kit.aar not found in prebuilt directory."
+            exit 1
+          fi
+          mv "$AAR_PATH" "ffmpeg-kit-lts-ndk-r23-16k.aar"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-kit-lts-aar
+          path: ffmpeg-kit-lts-ndk-r23-16k.aar
+          if-no-files-found: error
+      - name: print build logs
+        if: ${{ always() }}
+        run: cat build.log
+      - name: print ffbuild logs
+        if: ${{ failure() }}
+        run: '[[ -f ./src/ffmpeg/ffbuild/config.log ]] && tail -50 ./src/ffmpeg/ffbuild/config.log'
+
+  create-release:
+    name: create github release
+    # This job will only start if BOTH of the jobs above complete successfully.
+    needs: [build-lts-on-linux]
+    runs-on: ubuntu-latest
+    # This job will only run if the workflow is started manually.
+    if: github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
+    steps:
+      - name: set release tag
+        id: set_tag
+        run: echo "TAG_NAME=ffmpeg-kit-android-$(date +'%Y-%m-%dT%H-%M-%S')" >> $GITHUB_ENV
+      - name: download all aar artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: aar-artifacts
+      - name: list downloaded files for debug
+        run: ls -R aar-artifacts
+      - name: create github release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: "Android AARs (NDK r23-16k) - ${{ env.TAG_NAME }}"
+          body: "Automated release of Android AAR files from Linux builds using NDK r23 with 16kB page size support."
+          prerelease: true
+          files: aar-artifacts/*/*.aar
